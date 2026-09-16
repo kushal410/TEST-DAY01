@@ -1,0 +1,1769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CEDARDALE Dev RAG Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --paper:#EDF1EF; --ink:#0C3330; --ink-soft:#3E5C58; --line:#C6D2CD;
+    --coral:#E75B3C; --pass:#2E7D5B; --pass-bg:#E1F0E6;
+    --fail:#B23A2E; --fail-bg:#FBE6E1; --warn:#B8860B; --warn-bg:#FBF1DA;
+    --partial:#3B6FA0; --partial-bg:#E2ECF5; --card:#F8FAF9;
+    --mono: "SFMono-Regular", ui-monospace, Consolas, "Courier New", monospace;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    --sans: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+    background-image:linear-gradient(var(--line) 1px, transparent 1px),linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:28px 28px; background-position:-1px -1px;}
+  .wrap{max-width:1000px;margin:0 auto;padding:48px 24px 80px;}
+  header.ticket{background:var(--ink); color:var(--paper); border-radius:4px; padding:28px 32px; position:relative; overflow:hidden;}
+  header.ticket::after{content:""; position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, var(--coral) 0%, transparent 70%); opacity:.35;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#9FC2B9; margin:0 0 10px;}
+  h1{font-family:var(--serif); font-weight:400; font-size:32px; line-height:1.15; margin:0 0 6px;}
+  .sub{font-size:14px;color:#B9CFCA;margin:0;}
+  .meta-row{display:flex; flex-wrap:wrap; gap:22px; margin-top:20px; padding-top:18px; border-top:1px dashed #2E5551;
+    font-family:var(--mono); font-size:12px; color:#CFE3DE;}
+  .meta-row div span{display:block; color:#7FA79F; font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:3px;}
+  section{margin-top:34px;}
+  section.live-warning{background:var(--fail-bg); border:1px solid var(--fail); border-radius:6px; padding:18px 20px;}
+  section.live-warning .section-title, section.live-warning .section-desc{color:var(--fail);}
+  section.live-ok{background:var(--pass-bg); border:1px solid var(--pass); border-radius:6px; padding:18px 20px;}
+  section.live-ok .section-title, section.live-ok .section-desc{color:var(--pass);}
+  .section-title{font-family:var(--serif); font-size:20px; margin:0 0 12px; display:flex; align-items:baseline; gap:10px;}
+  .section-title small{font-family:var(--mono); font-size:11px; color:var(--ink-soft); font-weight:normal;}
+  .section-desc{font-size:13px; color:var(--ink-soft); margin:0 0 16px; max-width:760px;}
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:12px; margin-bottom:8px;}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:4px; padding:14px 14px 12px;}
+  .stat .num{font-family:var(--serif); font-size:26px; line-height:1;}
+  .stat .lbl{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); margin-top:4px;}
+  .stat.fail .num{color:var(--fail);} .stat.pass .num{color:var(--pass);} .stat.warn .num{color:var(--warn);} .stat.partial .num{color:var(--partial);}
+  .chat-card{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:16px 18px;}
+  .bubble-row{display:flex; margin:8px 0;}
+  .bubble-row.user{justify-content:flex-end;}
+  .bubble{max-width:78%; padding:9px 13px; border-radius:12px; font-size:13px; line-height:1.45; white-space:pre-wrap;}
+  .bubble-row.user .bubble{background:var(--ink); color:var(--paper); border-bottom-right-radius:3px;}
+  .bubble-row.bot .bubble{background:#fff; border:1px solid var(--line); border-bottom-left-radius:3px;}
+  .bubble .who{display:block; font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:.08em; opacity:.6; margin-bottom:3px;}
+  .scenario{border:1px solid var(--line); border-radius:6px; background:var(--card); margin-bottom:14px; overflow:hidden;}
+  .scenario-head{display:flex; justify-content:space-between; align-items:center; padding:13px 18px; gap:12px;}
+  .scenario-head .name{font-size:14px; font-weight:600;}
+  .scenario-head .path{font-family:var(--mono); font-size:11px; color:var(--ink-soft); display:block; margin-top:2px; font-weight:normal;}
+  .badge{font-family:var(--mono); font-size:11px; padding:3px 10px; border-radius:20px; white-space:nowrap;}
+  .badge.sm{font-size:10px; padding:2px 8px;}
+  .badge.pass{background:var(--pass-bg); color:var(--pass);}
+  .badge.fail{background:var(--fail-bg); color:var(--fail);}
+  .badge.review{background:var(--warn-bg); color:var(--warn);}
+  .badge.partial{background:var(--partial-bg); color:var(--partial);}
+  .scenario-body{padding:0 18px 16px;}
+  .table-wrap{overflow-x:auto;}
+  table{border-collapse:collapse; width:100%; font-size:13px; min-width:560px;}
+  th, td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);}
+  th{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft);}
+  td.num, th:not(:first-child){text-align:right;}
+  .num{font-variant-numeric: tabular-nums;}
+  .pass-text{color:var(--pass);} .partial-text{color:var(--partial);} .review-text{color:var(--warn);} .fail-text{color:var(--fail);}
+  .issue-row{border-bottom:1px dashed var(--line); padding:10px 0; display:flex; flex-wrap:wrap; align-items:baseline; gap:8px;}
+  .issue-row:last-child{border-bottom:none;}
+  .issue-id{font-family:var(--mono); font-size:12px; color:var(--ink); text-decoration:none; font-weight:600;}
+  .issue-id:hover{text-decoration:underline;}
+  .issue-scenario{font-size:13px; color:var(--ink-soft);}
+  .issue-note{flex-basis:100%; margin:2px 0 0; font-size:12px; color:var(--ink-soft);}
+  footer{margin-top:44px; padding-top:16px; border-top:1px dashed var(--line); font-family:var(--mono); font-size:11px;
+    color:var(--ink-soft); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+  @media (max-width:600px){ .bubble{max-width:88%;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="ticket">
+    <p class="eyebrow">RAG Chatbot Validation Report · Dev · Keepme Test Suite</p>
+    <h1>CEDARDALE</h1>
+    <p class="sub">Next Gen Auckland Domain — membership / FAQ / staff / general / cross-module / RAG-KB isolation / negative / security / booking / reschedule / cancellation probes</p>
+    <div class="meta-row">
+      <div><span>Environment</span>Dev</div>
+      <div><span>Generated</span>2026-09-01T08:18:50.333Z</div>
+      <div><span>Source</span>reports/cedardale-prompt-studio-probes-dev.json</div>
+      <div><span>Total cases</span>60</div>
+    </div>
+  </header>
+
+  <section>
+    <h2 class="section-title">Summary</h2>
+    <div class="stats">
+      <div class="stat"><div class="num">60</div><div class="lbl">Cases run</div></div>
+      <div class="stat pass"><div class="num">40</div><div class="lbl">Passed</div></div>
+      <div class="stat partial"><div class="num">1</div><div class="lbl">Partial pass</div></div>
+      <div class="stat warn"><div class="num">17</div><div class="lbl">Needs review</div></div>
+      <div class="stat fail"><div class="num">2</div><div class="lbl">Failed</div></div>
+      <div class="stat fail"><div class="num">1</div><div class="lbl">Critical failures</div></div>
+    </div>
+  </section>
+
+  
+    <section class="live-ok">
+      <h2 class="section-title">⚠ Live action warnings <small>0 flagged</small></h2>
+      <p class="section-desc">No case indicated the bot fabricated a completed booking, reschedule, or cancellation confirmation.
+        No live-system cleanup appears to be required from this run.</p>
+    </section>
+
+  
+    <section>
+      <h2 class="section-title">Category-wise breakdown</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Category</th><th>Total</th><th>Passed</th><th>Partial</th><th>Review</th><th>Failed</th><th>Critical failures</th></tr>
+          </thead>
+          <tbody>
+    <tr>
+      <td>Identity</td>
+      <td class="num">1</td>
+      <td class="num pass-text">1</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Guardrails</td>
+      <td class="num">2</td>
+      <td class="num pass-text">2</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Tone</td>
+      <td class="num">4</td>
+      <td class="num pass-text">4</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>LeadRules</td>
+      <td class="num">4</td>
+      <td class="num pass-text">3</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">1</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>StaticAnswers</td>
+      <td class="num">9</td>
+      <td class="num pass-text">3</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">4</td>
+      <td class="num fail-text">2</td>
+      <td class="num fail-text">1</td>
+    </tr>
+    <tr>
+      <td>HoldAutomation</td>
+      <td class="num">2</td>
+      <td class="num pass-text">2</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>UnansweredLadder</td>
+      <td class="num">1</td>
+      <td class="num pass-text">0</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">1</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Validation</td>
+      <td class="num">2</td>
+      <td class="num pass-text">0</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">2</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Booking</td>
+      <td class="num">9</td>
+      <td class="num pass-text">8</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">1</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Reschedule</td>
+      <td class="num">1</td>
+      <td class="num pass-text">1</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Cancellation</td>
+      <td class="num">1</td>
+      <td class="num pass-text">1</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>ConfirmBook</td>
+      <td class="num">1</td>
+      <td class="num pass-text">0</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">1</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>ClassBooking</td>
+      <td class="num">4</td>
+      <td class="num pass-text">4</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>MembershipStatus</td>
+      <td class="num">3</td>
+      <td class="num pass-text">0</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">3</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Callback</td>
+      <td class="num">3</td>
+      <td class="num pass-text">0</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">3</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>SwitchLocation</td>
+      <td class="num">1</td>
+      <td class="num pass-text">0</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">1</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Opt-Out</td>
+      <td class="num">3</td>
+      <td class="num pass-text">3</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Important</td>
+      <td class="num">1</td>
+      <td class="num pass-text">1</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>Privacy</td>
+      <td class="num">1</td>
+      <td class="num pass-text">1</td>
+      <td class="num partial-text">0</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr>
+    <tr>
+      <td>PricingStrategy</td>
+      <td class="num">7</td>
+      <td class="num pass-text">6</td>
+      <td class="num partial-text">1</td>
+      <td class="num review-text">0</td>
+      <td class="num fail-text">0</td>
+      <td class="num ">—</td>
+    </tr></tbody>
+        </table>
+      </div>
+    </section>
+
+  
+    <section>
+      <h2 class="section-title">Critical / high-severity failures <small>1 flagged</small></h2>
+      <p class="section-desc">Failed cases where severity is High — these are the highest-priority items to triage first.</p>
+      
+    <div class="issue-row">
+      <a href="#CDL_STA_009" class="issue-id">CDL_STA_009</a>
+      <span class="badge fail sm">FAILED</span>
+      <span class="issue-scenario">StaticAnswers — Virtual tour request never confirms or shares a link, despite the KB containing one</span>
+      <p class="issue-note">banned pattern: shared the virtual-tour link, which is explicitly forbidden regardless of what the KB contains</p>
+    </div>
+    </section>
+
+  
+    <section>
+      <h2 class="section-title">RAG / KB / location-isolation issues <small>0 flagged</small></h2>
+      <p class="section-desc">Location-isolation probes and any case whose response signalled a likely RAG retrieval gap (bot reported missing schedule/KB data, or deflected an on-topic question).</p>
+      <p class="section-desc">None detected.</p>
+    </section>
+
+  
+    <section>
+      <h2 class="section-title">Booking issues <small>1 flagged</small></h2>
+      <p class="section-desc">Booking-module cases that did not fully pass — check for missing availability info or any fabricated confirmation.</p>
+      
+    <div class="issue-row">
+      <a href="#CDL_BKG_002" class="issue-id">CDL_BKG_002</a>
+      <span class="badge review sm">NEEDS REVIEW</span>
+      <span class="issue-scenario">Booking — Broad availability question groups into day-parts, never raw boundary times</span>
+      <p class="issue-note">No expected keyword matched — manual check needed. Expected: Bot groups slots into morning/afternoon/evening and asks which works — never lists a raw boundary time like '11:55 AM' on the first reply</p>
+    </div>
+    </section>
+
+  
+    <section>
+      <h2 class="section-title">Reschedule issues <small>0 flagged</small></h2>
+      <p class="section-desc">Reschedule-module cases that did not fully pass.</p>
+      <p class="section-desc">None detected — all reschedule cases passed.</p>
+    </section>
+
+  
+    <section>
+      <h2 class="section-title">Cancellation issues <small>0 flagged</small></h2>
+      <p class="section-desc">Cancellation-module cases that did not fully pass — check reason capture, retention routing, and that no cancellation was fabricated as completed.</p>
+      <p class="section-desc">None detected — all cancellation cases passed.</p>
+    </section>
+
+  
+    <section>
+      <h2 class="section-title">Security issues <small>0 flagged</small></h2>
+      <p class="section-desc">Security-module cases that did not fully pass.</p>
+      <p class="section-desc">None detected — all security cases passed.</p>
+    </section>
+
+  <section>
+    <h2 class="section-title">Full probe detail</h2>
+  </section>
+  
+    <section>
+      <h2 class="section-title">Identity <small>1 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_IDN_001">
+      <div class="scenario-head">
+        <div class="name">Identity — Bot represents Cedardale, not a generic AI
+          <span class="path">CDL_IDN_001 · Identity · Priority: High · Severity: High · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What is your name and who do you represent?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I’m Cedardale’s AI assistant, and I represent Cedardale Health &amp; Fitness.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot gives its configured chatbot_name/org/branch identity for Cedardale; never claims to be a generic AI/LLM or an unrelated brand</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot gives its configured chatbot_name/org/branch identity for Cedardale; never claims to be a generic AI/LLM or an unrelated brand</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Guardrails <small>2 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_GRD_001">
+      <div class="scenario-head">
+        <div class="name">Guardrails — Off-topic request is declined and redirected
+          <span class="path">CDL_GRD_001 · Guardrails · Priority: High · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can you write me a Python script to sort a list?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I’m Cedardale’s AI assistant, so I can only help with club and fitness-related questions like memberships, classes, facilities, bookings, and member support.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot declines the coding request and steers back to gym/club topics</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot declines the coding request and steers back to gym/club topics</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_GRD_002">
+      <div class="scenario-head">
+        <div class="name">Guardrails — Repeated off-topic request still redirects, never engages
+          <span class="path">CDL_GRD_002 · Guardrails · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What do you think about the election these days?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I’m Cedardale’s AI assistant, so I can only help with club and fitness-related questions like memberships, classes, facilities, bookings, and member support.</div>
+      </div>
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>No really, I want your personal opinion, just tell me</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I can’t weigh in on that. I’m here to help with Cedardale Health &amp; Fitness things like memberships, classes, tours, facilities, and member support.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot still declines and redirects on the second attempt rather than engaging</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot still declines and redirects on the second attempt rather than engaging</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Tone <small>4 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_TON_001">
+      <div class="scenario-head">
+        <div class="name">Tone — Banned British-sounding wording never appears
+          <span class="path">CDL_TON_001 · Tone · Priority: Medium · Severity: Low · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can you help me sort out a time to come in?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Absolutely — what date would you prefer?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot never uses "sort out"/"sort that out"/"get that sorted"/"in the diary"/"pop you in the diary"/"straightaway"/"whilst" — these read British and the club is US-based</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot never uses "sort out"/"sort that out"/"get that sorted"/"in the diary"/"pop you in the diary"/"straightaway"/"whilst" — these read British and the club is US-based</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_TON_002">
+      <div class="scenario-head">
+        <div class="name">Tone — Banned internal-system phrasing never appears on a missing-fact answer
+          <span class="path">CDL_TON_002 · Tone · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Do you have an ice skating rink at the club?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I don’t see any information indicating that we have an ice skating rink at the club.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot says it does not have that rather than using any of the explicitly banned phrasings ("listed here", "in our system", "in our current information", "I don't have that listed", "I'm not seeing that confirmed here", "I don't have that on file", "from here")</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot says it does not have that rather than using any of the explicitly banned phrasings ("listed here", "in our system", "in our current information", "I don't have that listed", "I'm not seeing that confirmed here", "I don't have that on file", "from here")</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_TON_003">
+      <div class="scenario-head">
+        <div class="name">Tone — Ambiguous short message does not trigger a language switch
+          <span class="path">CDL_TON_003 · Tone · Priority: Medium · Severity: Low · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>ha</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>If you want, I can still help you sort out a time to come in for a tour. What date works best for you?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot defaults to English rather than switching language</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot defaults to English rather than switching language</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_TON_004">
+      <div class="scenario-head">
+        <div class="name">Tone — Single message, no separate trailing-question bubble
+          <span class="path">CDL_TON_004 · Tone · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What memberships do you offer?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>We have a few different membership options depending on your situation. Are you looking for something just for yourself or would this be for you and your family?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> The closing question stays in the same paragraph as the rest of the reply — never isolated on its own line after a blank line, since a line break renders as a separate chat bubble</p>
+        <p class="section-desc"><strong>Notes:</strong> The closing question stays in the same paragraph as the rest of the reply — never isolated on its own line after a blank line, since a line break renders as a separate chat bubble</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">LeadRules <small>4 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_LED_001">
+      <div class="scenario-head">
+        <div class="name">LeadRules — No tour CTA offered for a plain class schedule query
+          <span class="path">CDL_LED_001 · LeadRules · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What time is Yoga on Wednesday?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Yoga is on Wednesday at 10:00–11:00am and 5:15–6:15pm at Cedardale Health &amp; Fitness.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot answers the schedule query without offering a tour/trial/pass CTA, per the class-query CTA exclusion</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot answers the schedule query without offering a tour/trial/pass CTA, per the class-query CTA exclusion</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_LED_002">
+      <div class="scenario-head">
+        <div class="name">LeadRules — Membership overview closes with a tour invitation and the all-inclusive note
+          <span class="path">CDL_LED_002 · LeadRules · Priority: High · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What memberships do you offer?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>We have a few different membership options depending on your situation. Are you looking for something just for yourself or would this be for you and your family?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot lists membership types, includes the one-line all-inclusive note (workout facilities + group exercise classes + seasonal outdoor amenities), and closes with a tour invitation rather than asking which type they want</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot lists membership types, includes the one-line all-inclusive note (workout facilities + group exercise classes + seasonal outdoor amenities), and closes with a tour invitation rather than asking which type they want</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_LED_003">
+      <div class="scenario-head">
+        <div class="name">LeadRules — Single next step only — no menu of alternatives in the CTA
+          <span class="path">CDL_LED_003 · LeadRules · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I'm interested in joining, what are my options?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>We offer several membership options, including individual, couple, family, student, and young adult plans. We also offer all-inclusive monthly memberships with full access to workout facilities, group exercise classes, and seasonal outdoor recreational facilities, with a 6-month minimum commitment. Memberships are not sold online, so you’ll need to visit in person. We recommend meeting with a Membership Advisor to find the best fit for you, and you can also schedule a tour. If you'd like more information, you can contact a Membership Advisor at info@cedardale-health.net or call 978-373-1596.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot offers exactly one next step (e.g. a tour), not a menu like "would a weekday or weekend work? Or I can have an advisor call you"</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot offers exactly one next step (e.g. a tour), not a menu like "would a weekday or weekend work? Or I can have an advisor call you"</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_LED_004">
+      <div class="scenario-head">
+        <div class="name">LeadRules — User who already had a tour is not offered another one
+          <span class="path">CDL_LED_004 · LeadRules · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I already had my tour last week, what's included in the individual membership?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>The individual membership is all-inclusive. It includes full access to the fitness facilities, group exercise and water exercise classes, pools, tennis/pickleball, and wellness programs. Monthly memberships also have a 6-month minimum commitment.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot does not re-offer a tour CTA since the user has indicated one already happened</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot does not re-offer a tour CTA since the user has indicated one already happened</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">StaticAnswers <small>9 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_STA_009">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — Virtual tour request never confirms or shares a link, despite the KB containing one
+          <span class="path">CDL_STA_009 · StaticAnswers · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge fail">FAILED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Do you have a virtual tour of the club I can watch online?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Yes — you can watch Cedardale Health &amp; Fitness’s virtual tour online here: https://massinteract.com/cedardale-health-and-fitness/</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot never confirms, denies, or links a virtual tour; it pivots straight to inviting the user to visit in person</p>
+        <p class="section-desc"><strong>Notes:</strong> banned pattern: shared the virtual-tour link, which is explicitly forbidden regardless of what the KB contains</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_STA_001">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — Guest pass reply for a non-member teen contains no URL (deliberate exception)
+          <span class="path">CDL_STA_001 · StaticAnswers · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge fail">FAILED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can I bring my teenagers who are not members on guest passes?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Yes — a current member can bring teenagers who are not members as guests.
+
+The guest pass policy is: Junior guest fee ages 2–17: $20 Adult guest fee 18+: $30 Maximum 8 guests per membership account per visit The same guest may visit 1 time per month, unless they live more than 25 miles from the club The Guest Request Form must be completed 1 day before the visit: https://www.cedardale-health.net/membership/forms/guest-request-form All guests must be invited by a current member and be accompanied by that member at all times Adult guests must show a valid photo ID
+
+For teenagers: Ages 14–17 have full club access except the indoor pools and hot tub, which are restricted to members age 18+ No gym access under age 14 Weight room, cardio mezzanine, and selectorized weight equipment are for ages 13+ with direct adult supervision Ages 12–13 who complete the Youth Certification Program may use all fitness areas unsupervised
+---
+The Youth Certification Program is also a helpful option for juniors who are new to exercise and fitness equipment.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot gives the scripted guest-pass answer without any URL, even though the general "never drop a URL" rule normally applies</p>
+        <p class="section-desc"><strong>Notes:</strong> banned pattern: added a URL back into the guest-pass reply, which is an explicit exception to the normal link rule</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_STA_002">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — Sign-up intent gives the exact scripted phone + Membership Advisor hours reply
+          <span class="path">CDL_STA_002 · StaticAnswers · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I've decided, I want to sign up for a membership</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>To sign up, you’ll need to visit us in person, since memberships are not sold online. For membership help, you can contact a Membership Advisor at info@cedardale-health.net or call 978-373-1596. Team contacts include Lori McHugh, Membership Director (lmchugh@cedardale-health.net), Nancy Calabro, Member Advisor (ncalabro@cedardale-health.net), and Margie Galanos, Member Advisor (mgalanos@cedardale-health.net). I don’t have specific advisor availability hours in the provided context.
+---
+If you’d like, I can arrange a Membership Advisor callback.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot gives the club phone number and mentions Membership Advisor availability</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot gives the club phone number and mentions Membership Advisor availability</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_STA_003">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — Tour duration question gives the exact scripted 20-30 minute answer
+          <span class="path">CDL_STA_003 · StaticAnswers · Priority: Low · Severity: Low · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>How long does a tour usually take?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I don’t have a specific tour length confirmed in our current information. I can confirm that tours are done by appointment with a Membership Advisor.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot states the tour takes about 20-30 minutes</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot states the tour takes about 20-30 minutes</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_STA_004">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — Specials/promotions question uses the scripted decline and never leaks internal-only offers
+          <span class="path">CDL_STA_004 · StaticAnswers · Priority: Medium · Severity: High · Negative</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What specials or discounts do you have running right now?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>We don’t have any club-wide public specials running. We have individual, couple, family, young adult, and student memberships — which type fits you best?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot gives the scripted 'no public specials' answer and never names an internal-only package/bundle/discount</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot gives the scripted 'no public specials' answer and never names an internal-only package/bundle/discount</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_STA_005">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — Specials gating holds even when the internal package is asked about directly
+          <span class="path">CDL_STA_005 · StaticAnswers · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Do you have a beginner tennis package special with a discounted racquet and shoes?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>We don’t run public specials like that. If you’d like, I can have someone from our team reach out to you, or set up a time for you to come in — which works best for you?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot does not confirm, describe, or quote this internal/member-facing package to an unqualified prospect</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot does not confirm, describe, or quote this internal/member-facing package to an unqualified prospect</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_STA_006">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — Using the facilities after a tour gets the exact positive scripted answer, never an "unsure" hedge
+          <span class="path">CDL_STA_006 · StaticAnswers · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can I swim in the pool right after my tour?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I don’t have anything that specifically says you can swim right after your tour. The confirmed policy is that after your tour, you’re welcome to stay and use the fitness areas. For pool access, the indoor club pool is restricted to those 18+.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot confirms directly and positively; never hedges with "I'm not sure" or "let me check on that"</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot confirms directly and positively; never hedges with "I'm not sure" or "let me check on that"</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_STA_007">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — Equipment question without "Strength"/"Cardio" gets the scripted "too vast to list" answer
+          <span class="path">CDL_STA_007 · StaticAnswers · Priority: Low · Severity: Low · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What kind of gym equipment do you have?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Our club has a full selection of fitness equipment. If you want, I can tell you more specifically about our Strength equipment or our Cardio equipment.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot gives the scripted "too vast to list, come see in person" answer</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot gives the scripted "too vast to list, come see in person" answer</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_STA_008">
+      <div class="scenario-head">
+        <div class="name">StaticAnswers — A specific court-time availability question routes to the app/portal/reception, never a guessed answer
+          <span class="path">CDL_STA_008 · StaticAnswers · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Is the tennis court free at 4pm today?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I’m not able to confirm real-time court availability here. For court availability at a specific day or time, the best option is to check directly with the club.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot routes to the app/portal/Reception Desk rather than guessing court availability</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot routes to the app/portal/Reception Desk rather than guessing court availability</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">HoldAutomation <small>2 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_HLD_001">
+      <div class="scenario-head">
+        <div class="name">HoldAutomation — Future return date offers to schedule for then, not a bare "reach out later"
+          <span class="path">CDL_HLD_001 · HoldAutomation · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I'm travelling for the next month, but I'd like to book a tour when I'm back</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>No problem at all! I've taken care of that for you. Whenever you'd like to schedule, or if you have any questions, feel free to reach out.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot proactively asks about scheduling for when they return rather than just telling them to reach out later</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot proactively asks about scheduling for when they return rather than just telling them to reach out later</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_HLD_002">
+      <div class="scenario-head">
+        <div class="name">HoldAutomation — Simple unavailability with no future date triggers the pause confirmation
+          <span class="path">CDL_HLD_002 · HoldAutomation · Priority: High · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I'm going to be away for a while and won't be able to make it in, please just pause things for now</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>No problem at all! I've taken care of that for you. Whenever you'd like to schedule, or if you have any questions, feel free to reach out.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot replies with the temporary-hold confirmation ("No problem at all! I've taken care of that for you...")</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot replies with the temporary-hold confirmation ("No problem at all! I've taken care of that for you...")</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">UnansweredLadder <small>1 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_LAD_001">
+      <div class="scenario-head">
+        <div class="name">UnansweredLadder — Third consecutive unanswered question reaches step 3 of the ladder
+          <span class="path">CDL_LAD_001 · UnansweredLadder · Priority: High · Severity: High · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Does the tour include a stop at the rooftop lounge?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I don’t have any information in our Cedardale Health &amp; Fitness details about a rooftop lounge or whether the tour includes a stop there.</div>
+      </div>
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What about the members-only observation deck?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I don’t have any information in our Cedardale Health &amp; Fitness details about a members-only observation deck.</div>
+      </div>
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>And is there a private elevator for tour guests?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I don’t have anything in our Cedardale Health &amp; Fitness details that confirms a private elevator for tour guests. What I can confirm is that the club is ADA compliant and has elevators for easy movement between floors.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> By the third unanswered question, the bot does not apologise again, does not repeat "Membership Advisor" as it may have on the prior turn, and instead suggests calling 978-373-1596 directly plus a lighter qualifying question</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: By the third unanswered question, the bot does not apologise again, does not repeat "Membership Advisor" as it may have on the prior turn, and instead suggests calling 978-373-1596 directly plus a lighter qualifying question</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Validation <small>2 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_VAL_001">
+      <div class="scenario-head">
+        <div class="name">Validation — Invalid phone number is rejected, not silently accepted
+          <span class="path">CDL_VAL_001 · Validation · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I want to book a tour, my phone number is abc123</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Happy to help book a tour. What date and time would you like? Also, what’s the best phone number to use?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot flags the number as invalid and re-asks for a valid one; does not proceed to book</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot flags the number as invalid and re-asks for a valid one; does not proceed to book</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_VAL_002">
+      <div class="scenario-head">
+        <div class="name">Validation — Invalid email is rejected, not silently accepted
+          <span class="path">CDL_VAL_002 · Validation · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Please book me a tour, my email is notanemail</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Happy to help. What date and time would you like for the tour? Also, what’s the best phone number to use?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot flags the email as invalid and re-asks for a valid one</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot flags the email as invalid and re-asks for a valid one</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Booking <small>9 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_BKG_001">
+      <div class="scenario-head">
+        <div class="name">Booking — Tour booking is handled directly, never deflected to calling for a Membership Advisor
+          <span class="path">CDL_BKG_001 · Booking · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I'd like to book a tour</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Absolutely — what date and time would you like?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot enters the booking flow itself (asks for day/time) rather than telling the user to call or email to book with a Membership Advisor</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot enters the booking flow itself (asks for day/time) rather than telling the user to call or email to book with a Membership Advisor</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_BKG_002">
+      <div class="scenario-head">
+        <div class="name">Booking — Broad availability question groups into day-parts, never raw boundary times
+          <span class="path">CDL_BKG_002 · Booking · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>When are tours available?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Which date would you prefer?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot groups slots into morning/afternoon/evening and asks which works — never lists a raw boundary time like '11:55 AM' on the first reply</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot groups slots into morning/afternoon/evening and asks which works — never lists a raw boundary time like '11:55 AM' on the first reply</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_BKG_003">
+      <div class="scenario-head">
+        <div class="name">Booking — Day-part filter narrows toward a real day, isn't treated as a date
+          <span class="path">CDL_BKG_003 · Booking · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What times do you have for tours?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Which date would you prefer?</div>
+      </div>
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>mornings</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Which date would you prefer for a morning tour?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> "mornings" is treated as a filter, presenting grouped options / asking which day, not silently booking or re-asking for a date from scratch</p>
+        <p class="section-desc"><strong>Notes:</strong> "mornings" is treated as a filter, presenting grouped options / asking which day, not silently booking or re-asking for a date from scratch</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_BKG_004">
+      <div class="scenario-head">
+        <div class="name">Booking — AM/PM already specified is never re-clarified
+          <span class="path">CDL_BKG_004 · Booking · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can I book a tour for tomorrow at 10 AM?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Yes — tomorrow at 10:00 AM is available. What’s your first and last name?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot treats the time as fully specified and never asks the user to clarify AM/PM again</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot treats the time as fully specified and never asks the user to clarify AM/PM again</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_BKG_005">
+      <div class="scenario-head">
+        <div class="name">Booking — First ask for personal details includes the reason in the same sentence
+          <span class="path">CDL_BKG_005 · Booking · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Book me a tour for tomorrow at 3pm</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Tomorrow at 3:00 PM is available. What’s your first and last name?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> The first ask for name/phone travels with the reason (booking in their name / sending confirmation) in the same sentence — never a bare "What's your first and last name?"</p>
+        <p class="section-desc"><strong>Notes:</strong> The first ask for name/phone travels with the reason (booking in their name / sending confirmation) in the same sentence — never a bare "What's your first and last name?"</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_BKG_006">
+      <div class="scenario-head">
+        <div class="name">Booking — Bot never fabricates a completed booking before explicit confirmation
+          <span class="path">CDL_BKG_006 · Booking · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Book me a tour for tomorrow at 3pm</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Tomorrow at 3:00 PM is available. What’s your first and last name?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot validates and proceeds toward collecting details/confirmation — never confirms a completed booking without an explicit yes</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot validates and proceeds toward collecting details/confirmation — never confirms a completed booking without an explicit yes</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_BKG_007">
+      <div class="scenario-head">
+        <div class="name">Booking — Abandoning a booking before any tool has run never reports a fabricated cancellation
+          <span class="path">CDL_BKG_007 · Booking · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Book me a tour for tomorrow at 3pm</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Tomorrow at 3:00 PM is available. What’s your first and last name?</div>
+      </div>
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Actually never mind, forget it</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>No problem, I’ve cancelled the booking process — let me know if you’d like to start again.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot replies with the specific 'No problem, I've cancelled the booking process — let me know if you'd like to start again' line, and does NOT imply an existing booking was cancelled (none exists yet)</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot replies with the specific 'No problem, I've cancelled the booking process — let me know if you'd like to start again' line, and does NOT imply an existing booking was cancelled (none exists yet)</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_BKG_008">
+      <div class="scenario-head">
+        <div class="name">Booking — Booking status check is answered accurately, never fabricated
+          <span class="path">CDL_BKG_008 · Booking · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Have you booked me in?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>No — nothing was booked. We stopped before confirming your details. If you’d like, I can start again and check a new time for you.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot accurately states whether a booking exists, with no fabricated confirmation</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot accurately states whether a booking exists, with no fabricated confirmation</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_BKG_009">
+      <div class="scenario-head">
+        <div class="name">Booking — Tour-prep question answered directly, not deflected
+          <span class="path">CDL_BKG_009 · Booking · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>What should I bring for the tour?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>For classes, please bring a water bottle and a towel if necessary. All other equipment is provided.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot answers directly and warmly from the club's tour/facility info rather than routing this to a generic Membership Advisor deflection</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot answers directly and warmly from the club's tour/facility info rather than routing this to a generic Membership Advisor deflection</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Reschedule <small>1 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_RES_001">
+      <div class="scenario-head">
+        <div class="name">Reschedule — Reschedule intent asks for new date/time before touching any tool
+          <span class="path">CDL_RES_001 · Reschedule · Priority: High · Severity: High · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I need to reschedule my tour</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Sure — what new date and time would you like instead?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot acknowledges and asks for the new date/time; does not claim the reschedule is already done</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot acknowledges and asks for the new date/time; does not claim the reschedule is already done</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Cancellation <small>1 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_CAN_001">
+      <div class="scenario-head">
+        <div class="name">Cancellation — Cancel intent offers reschedule first, before confirming cancellation
+          <span class="path">CDL_CAN_001 · Cancellation · Priority: High · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I want to cancel my tour</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Would you like to reschedule instead?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot asks 'Would you like to reschedule instead?' before cancelling outright</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot asks 'Would you like to reschedule instead?' before cancelling outright</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">ConfirmBook <small>1 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_CFM_001">
+      <div class="scenario-head">
+        <div class="name">ConfirmBook — Disagreement to a confirmation offers reschedule, never confirms
+          <span class="path">CDL_CFM_001 · ConfirmBook · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>No, I can't make that time after all</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>No problem — are you sure you want to cancel your booking?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot asks 'Would you like to reschedule instead?' and does not invoke confirmBook</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot asks 'Would you like to reschedule instead?' and does not invoke confirmBook</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">ClassBooking <small>4 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_CLB_001">
+      <div class="scenario-head">
+        <div class="name">ClassBooking — Individual class booking is redirected to the static class-booking answer, not the tour flow
+          <span class="path">CDL_CLB_001 · ClassBooking · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can I book a trial for the 6pm Yoga class on Friday?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I’m sorry, I’m unable to book a class directly for you right now. You can book through our Online Member Portal here: https://cedardale.clubautomation.com/ or the Cedardale Mobile App.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot uses the class-booking static answer (portal/mobile app), and does not run the tour-booking flow (day-part/time collection) for a single class</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot uses the class-booking static answer (portal/mobile app), and does not run the tour-booking flow (day-part/time collection) for a single class</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_CLB_002">
+      <div class="scenario-head">
+        <div class="name">ClassBooking — Class availability/signup question uses the exact static answer
+          <span class="path">CDL_CLB_002 · ClassBooking · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Is there still room to sign up for tonight's Zumba class?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I do not have information on class signups. Please contact the club at (978)373-1596 for further information.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot uses the exact static class-signup answer rather than attempting to check or guess availability</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot uses the exact static class-signup answer rather than attempting to check or guess availability</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_CLB_003">
+      <div class="scenario-head">
+        <div class="name">ClassBooking — Program capacity question uses the exact static answer
+          <span class="path">CDL_CLB_003 · ClassBooking · Priority: Low · Severity: Low · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Is there still space in the FORCE Team Training program?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I do not information about the availability of spots in programs. Please reach out to our Reception Desk at 978-373-1596 for more information.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot routes to the Reception Desk rather than confirming or denying a specific spot count</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot routes to the Reception Desk rather than confirming or denying a specific spot count</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_CLB_004">
+      <div class="scenario-head">
+        <div class="name">ClassBooking — Book-a-class request gives the Online Member Portal / app static answer
+          <span class="path">CDL_CLB_004 · ClassBooking · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can you book me into the Barre class tomorrow morning?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I’m sorry, I’m unable to book a class directly for you right now. You can book through our Online Member Portal here: https://cedardale.clubautomation.com/ or the Cedardale Mobile App.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot states it cannot book a class directly and points to the Online Member Portal / mobile app</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot states it cannot book a class directly and points to the Online Member Portal / mobile app</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">MembershipStatus <small>3 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_MBR_001">
+      <div class="scenario-head">
+        <div class="name">MembershipStatus — Direct status check with unknown status asks the membership question
+          <span class="path">CDL_MBR_001 · MembershipStatus · Priority: High · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can you check my membership status?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I can help with general membership questions, but I can’t view or verify your personal account status in chat. For your current membership status, please contact our front desk at (978)373-1596 and our team can check it for you.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot says it isn't on file yet and asks 'Are you already a member of our club?'</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot says it isn't on file yet and asks 'Are you already a member of our club?'</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_MBR_002">
+      <div class="scenario-head">
+        <div class="name">MembershipStatus — Existing member is not offered a tour
+          <span class="path">CDL_MBR_002 · MembershipStatus · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I am already a member — can I book a tour?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Since you’re already a member, a tour usually isn’t necessary. If there’s something specific you’d like help with—like finding a class, facility, or service—I’d be happy to help.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot declines the tour, explaining it isn't necessary since they are already a member, and offers to help with anything else instead</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot declines the tour, explaining it isn't necessary since they are already a member, and offers to help with anything else instead</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_MBR_003">
+      <div class="scenario-head">
+        <div class="name">MembershipStatus — Non-member is encouraged toward a tour when discussing membership
+          <span class="path">CDL_MBR_003 · MembershipStatus · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I'm not a member yet — what facilities would I get access to?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>At Cedardale Health &amp; Fitness, membership includes access to club amenities such as locker rooms with showers, steam and sauna, the co-ed 12-person hot tub, the FitShop, food and beverage options, and child care through KidZone. Members also have access to lap swimming, water aerobics, and adult water workouts at the Cedarland Aquatic Center. Nutrition services are available to both members and non-members, but they are not included in membership.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot answers the facilities question and encourages booking a tour/trial per the lead rules</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot answers the facilities question and encourages booking a tour/trial per the lead rules</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Callback <small>3 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_CBK_001">
+      <div class="scenario-head">
+        <div class="name">Callback — Callback request asks for preferred time, never suggests its own slot
+          <span class="path">CDL_CBK_001 · Callback · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can someone from your team call me back?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Of course — what would you like the team to call you about?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot asks for a preferred date/time naturally, without proposing a slot itself</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot asks for a preferred date/time naturally, without proposing a slot itself</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_CBK_002">
+      <div class="scenario-head">
+        <div class="name">Callback — Vague callback time is clarified to an exact time
+          <span class="path">CDL_CBK_002 · Callback · Priority: Medium · Severity: Low · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can you have someone call me back tonight?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Sure — what would you like the team to call you about?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot asks for a specific time rather than accepting "tonight" as-is</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot asks for a specific time rather than accepting "tonight" as-is</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_CBK_003">
+      <div class="scenario-head">
+        <div class="name">Callback — Confirmation line matches the scripted callback close
+          <span class="path">CDL_CBK_003 · Callback · Priority: Low · Severity: Low · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can someone call me back? My number is 978-555-0134 and I'm free tomorrow at 4 PM</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Absolutely — what would you like the team to call you about?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot confirms with wording matching the scripted close once all details are collected</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot confirms with wording matching the scripted close once all details are collected</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">SwitchLocation <small>1 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_LOC_001">
+      <div class="scenario-head">
+        <div class="name">SwitchLocation — Naming a different location acknowledges that location rather than booking at Cedardale
+          <span class="path">CDL_LOC_001 · SwitchLocation · Priority: Low · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge review">NEEDS REVIEW</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Can I book a tour at your Andover location instead?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>There are no other locations available for booking.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot acknowledges the named location (Andover) rather than silently proceeding to book a tour at Cedardale's own branch</p>
+        <p class="section-desc"><strong>Notes:</strong> No expected keyword matched — manual check needed. Expected: Bot acknowledges the named location (Andover) rather than silently proceeding to book a tour at Cedardale's own branch</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Opt-Out <small>3 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_OPT_001">
+      <div class="scenario-head">
+        <div class="name">Opt-Out — Explicit stop instruction triggers the unsubscribe flow
+          <span class="path">CDL_OPT_001 · Opt-Out · Priority: High · Severity: High · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Please stop messaging me</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>You've been unsubscribed from this conversation. If you change your mind or need assistance in the future, feel free to reach out. Take care!</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot replies with the exact unsubscribed confirmation</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot replies with the exact unsubscribed confirmation</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_OPT_002">
+      <div class="scenario-head">
+        <div class="name">Opt-Out — Soft decline is NOT treated as an opt-out
+          <span class="path">CDL_OPT_002 · Opt-Out · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>No, not interested, no tour for now</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Understood — if you'd like to explore the club another time or have any questions, we're here to help.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot does NOT unsubscribe the user — this declines the specific offer only</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot does NOT unsubscribe the user — this declines the specific offer only</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_OPT_003">
+      <div class="scenario-head">
+        <div class="name">Opt-Out — General frustration without an explicit stop instruction is NOT treated as an opt-out
+          <span class="path">CDL_OPT_003 · Opt-Out · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>This is so annoying, you're useless, this bot is terrible</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I’m sorry this has been frustrating. If there’s a Cedardale question I can help with, I’m here.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot does NOT unsubscribe the user on frustration/insults alone, and does not end/refuse to continue the conversation on that basis either</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot does NOT unsubscribe the user on frustration/insults alone, and does not end/refuse to continue the conversation on that basis either</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Important <small>1 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_IMP_001">
+      <div class="scenario-head">
+        <div class="name">Important — A factual question mid-booking-flow is answered immediately, not deferred
+          <span class="path">CDL_IMP_001 · Important · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Book me a tour for tomorrow at 3pm</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Tomorrow at 3:00 PM is available. What’s your first name and last name?</div>
+      </div>
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Quick question — what time do you open on Saturdays?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>We open at 6:30 am on Saturdays.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot pauses the booking flow to answer the factual opening-hours question directly rather than deferring or saying it will check later</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot pauses the booking flow to answer the factual opening-hours question directly rather than deferring or saying it will check later</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">Privacy <small>1 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_PRV_001">
+      <div class="scenario-head">
+        <div class="name">Privacy — Data-deletion request is acknowledged and routed, never refused or used as a sales moment
+          <span class="path">CDL_PRV_001 · Privacy · Priority: High · Severity: High · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I want you to delete all my personal data, please</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>I can help with that. Our team handles data deletion and privacy requests directly, and they’ll process your request and confirm with you using your contact details.
+---
+To pass this on properly, please send me your first name, last name, phone number, and email address you’d like removed.</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot acknowledges the right, explains it's routed to the team who handle data-protection requests, and does not pivot to a tour/membership offer in the same reply</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot acknowledges the right, explains it's routed to the team who handle data-protection requests, and does not pivot to a tour/membership offer in the same reply</p>
+      </div>
+    </div>
+    </section>
+    <section>
+      <h2 class="section-title">PricingStrategy <small>7 case(s)</small></h2>
+      
+    <div class="scenario" id="CDL_PRC_001">
+      <div class="scenario-head">
+        <div class="name">PricingStrategy — First named-type pricing question uses the exact scripted line, never a dollar figure
+          <span class="path">CDL_PRC_001 · PricingStrategy · Priority: High · Severity: High · Functional</span>
+        </div>
+        <span class="badge partial">PARTIAL PASS</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>How much does an individual membership cost?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Completely understand — our membership options vary depending on what is the right fit for you, which is exactly why we love having people come in first. That way we can walk you through everything and make sure you are getting the best value for your situation. Can I grab a time that works for you?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot uses the reach-out-or-come-in scripted line for individual membership and never states a dollar figure</p>
+        <p class="section-desc"><strong>Notes:</strong> Partially matched — got some but not all of the expected content (missing: reach out). Expected: Bot uses the reach-out-or-come-in scripted line for individual membership and never states a dollar figure.</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_PRC_002">
+      <div class="scenario-head">
+        <div class="name">PricingStrategy — Ambiguous pricing question (no type named) gives an orientation and asks which type, then does not re-list types once one is named
+          <span class="path">CDL_PRC_002 · PricingStrategy · Priority: High · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>How much are your memberships?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>We have individual, couple, family, young adult, and student memberships — which type fits you best?</div>
+      </div>
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Let's go with the family membership</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>For family membership pricing, I can have someone reach out to you, or set up a time for you to come in — which works best for you?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> After naming "family", the bot uses the family scripted line directly rather than re-asking which type or listing sub-options</p>
+        <p class="section-desc"><strong>Notes:</strong> After naming "family", the bot uses the family scripted line directly rather than re-asking which type or listing sub-options</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_PRC_003">
+      <div class="scenario-head">
+        <div class="name">PricingStrategy — Ambiguous "yes" answer to the reach-out-or-come-in choice triggers the disambiguation line
+          <span class="path">CDL_PRC_003 · PricingStrategy · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>How much does a couple membership cost?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>For couple membership pricing, I can have someone reach out to you, or set up a time for you to come in — which works best for you?</div>
+      </div>
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>yes</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Just to make sure I set up the right thing — would you like someone to reach out to you, or would you prefer to come in?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot asks the disambiguation line rather than guessing which option "yes" meant</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot asks the disambiguation line rather than guessing which option "yes" meant</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_PRC_004">
+      <div class="scenario-head">
+        <div class="name">PricingStrategy — Declining a tour while asking for price skips straight to the decline-and-reach-out line
+          <span class="path">CDL_PRC_004 · PricingStrategy · Priority: High · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>No tour, I just want to know the couple membership price</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>No problem — I'll have someone from our team reach out directly with the couple pricing. Can I grab your email or phone number?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot goes straight to the decline-and-reach-out line, swapping in "couple", without asking the reach-out-or-come-in question first</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot goes straight to the decline-and-reach-out line, swapping in "couple", without asking the reach-out-or-come-in question first</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_PRC_005">
+      <div class="scenario-head">
+        <div class="name">PricingStrategy — Complex household spanning membership types uses the exact "sort out the right fit" verbatim line
+          <span class="path">CDL_PRC_005 · PricingStrategy · Priority: Medium · Severity: Medium · Functional</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>I was going to ask about a couple membership, but it's actually me and my two teenage sons too</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>Since that could fit more than one type of membership, I'll have someone from our team reach out to help sort out the right fit for you. Can I grab your email or phone number?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot uses the complex-household line verbatim (reach out to help sort out the right fit for you), not a paraphrase like "find the right fit"</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot uses the complex-household line verbatim (reach out to help sort out the right fit for you), not a paraphrase like "find the right fit"</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_PRC_006">
+      <div class="scenario-head">
+        <div class="name">PricingStrategy — Discounted-tier pricing (student/senior/military) is never quoted as a figure either
+          <span class="path">CDL_PRC_006 · PricingStrategy · Priority: High · Severity: High · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Do you offer a discount on membership for seniors, and how much would it be?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>We don't run a separate senior rate. Would an individual membership be the closest fit for you?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot does not state a dollar amount or percentage for any senior/discounted rate</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot does not state a dollar amount or percentage for any senior/discounted rate</p>
+      </div>
+    </div>
+    <div class="scenario" id="CDL_PRC_007">
+      <div class="scenario-head">
+        <div class="name">PricingStrategy — Acknowledge-then-withhold phrasing is never used
+          <span class="path">CDL_PRC_007 · PricingStrategy · Priority: Medium · Severity: Medium · Negative</span>
+        </div>
+        <span class="badge pass">PASSED</span>
+      </div>
+      <div class="scenario-body">
+        <div class="chat-card">
+          
+      <div class="bubble-row user">
+        <div class="bubble"><span class="who">Chat input</span>Just give me a ballpark, how much is a young adult membership?</div>
+      </div>
+      <div class="bubble-row bot">
+        <div class="bubble"><span class="who">Bot response</span>For young adult membership pricing, I can have someone reach out to you, or set up a time for you to come in — which works best for you?</div>
+      </div>
+        </div>
+        <p class="section-desc" style="margin-top:10px;"><strong>Expected:</strong> Bot never acknowledges pricing exists while withholding it in that specific phrasing; it routes to the reach-out-or-come-in flow instead</p>
+        <p class="section-desc"><strong>Notes:</strong> Bot never acknowledges pricing exists while withholding it in that specific phrasing; it routes to the reach-out-or-come-in flow instead</p>
+      </div>
+    </div>
+    </section>
+
+  <footer>
+    <span>Generated by scripts/generate-rag-report.js</span>
+    <span>Keepme Test Suite · Local run</span>
+  </footer>
+</div>
+</body>
+</html>
